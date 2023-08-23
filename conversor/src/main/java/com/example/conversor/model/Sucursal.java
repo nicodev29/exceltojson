@@ -1,5 +1,6 @@
 package com.example.conversor.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
@@ -22,11 +23,15 @@ public class Sucursal {
     private String number;
     private String name;
     private String manager;
+    @JsonProperty("email_address")
     private String emailAddress;
+    @JsonProperty("phone_number")
     private String phoneNumber;
     private String status;
     private String numeration;
+    @JsonProperty("created_at")
     private LocalDateTime createdAt;
+    @JsonProperty("updated_at")
     private LocalDateTime updatedAt;
 
     @Embedded
