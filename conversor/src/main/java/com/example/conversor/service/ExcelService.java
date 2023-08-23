@@ -1,20 +1,22 @@
 package com.example.conversor.service;
 
-import com.example.conversor.model.Address;
-import com.example.conversor.model.DayHours;
-import com.example.conversor.model.Sucursal;
+import com.example.conversor.model.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.Lob;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
-import java.time.LocalDateTime;
+
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.*;
 
 
 @Service
 public class ExcelService {
 
-    private static final int INDEX_PARENT_ID = 0;
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final int INDEX_HUB_ID = 0;
     private static final int INDEX_CODE = 1;
     private static final int INDEX_TYPE = 2;
     private static final int INDEX_NUMBER = 3;
@@ -22,9 +24,9 @@ public class ExcelService {
     private static final int INDEX_EMAIL_ADDRESS = 5;
     private static final int INDEX_ADDRESS_LINE1 = 8;
     private static final int INDEX_CITY = 4;
-    private static final int INDEX_REGION = 10;
-    private static final int INDEX_LATITUDE = 10;
-    private static final int INDEX_LONGITUDE = 11;
+    private static final int INDEX_REGION = 11;
+    private static final int INDEX_LATITUDE = 12;
+    private static final int INDEX_LONGITUDE = 13;
     private static final int INDEX_POSTAL_CODE = 14;
     private static final int INDEX_MANAGER = 15;
     private static final int INDEX_PHONE_NUMBER = 16;
@@ -61,7 +63,6 @@ public class ExcelService {
                 sucursal.setType(convertType(getValueOrNullOrTrimmed(row.getCell(INDEX_TYPE))));
                 sucursal.setNumber(getValueOrNullOrTrimmed(row.getCell(INDEX_NUMBER)));
                 sucursal.setName(getValueOrNullOrTrimmed(row.getCell(INDEX_NAME)));
-                sucursal.setEmailAddress(getValueOrNullOrTrimmed(row.getCell(INDEX_EMAIL_ADDRESS)));
                 sucursal.setManager(getValueOrNullOrTrimmed(row.getCell(INDEX_MANAGER)));
                 sucursal.setPhoneNumber(getValueOrNullOrTrimmed(row.getCell(INDEX_PHONE_NUMBER)));
                 sucursal.setCreatedAt(LocalDateTime.now());
@@ -84,21 +85,64 @@ public class ExcelService {
                     }
                 }
 
+                String emailAddress = getValueOrNullOrTrimmed(row.getCell(INDEX_EMAIL_ADDRESS));
+                if ("NULL".equalsIgnoreCase(emailAddress)) {
+                    emailAddress = null;
+                }
+
+                Address address = new Address();
                 String addressLine1 = getValueOrNullOrTrimmed(row.getCell(INDEX_ADDRESS_LINE1));
                 String numeration = getValueOrNullOrTrimmed(row.getCell(INDEX_NUMERATION));
 
-                if(numeration != null && !numeration.trim().isEmpty()) {
-                    addressLine1 = addressLine1 + " " + numeration;
+                if (numeration != null && !numeration.trim().isEmpty()) {
+                    try {
+                        double numerationValue = Double.parseDouble(numeration);
+                        int numerationIntValue = (int) numerationValue; // Convierte a int para quitar los decimales
+                        addressLine1 = addressLine1 + " " + numerationIntValue;
+                    } catch (NumberFormatException e) {
+                        // Si no se puede convertir a número, mantener la numeración como está
+                        addressLine1 = addressLine1 + " " + numeration;
+                    }
                 }
-                Address address = new Address();
-                address.setAddressLine1(getValueOrNullOrTrimmed(row.getCell(INDEX_ADDRESS_LINE1)));
+
+                address.setAddressLine1(addressLine1);
                 address.setCity(getValueOrNullOrTrimmed(row.getCell(INDEX_CITY)));
-                address.setRegion(getValueOrNullOrTrimmed(row.getCell(INDEX_REGION)));
+                String regionValue = getValueOrNullOrTrimmed(row.getCell(INDEX_REGION));
+                if (regionValue != null) {
+                    address.setRegion("AR-" + regionValue);
+                } else {
+                    address.setRegion(null);
+                }
                 address.setPostalCode(getValueOrNullOrTrimmed(row.getCell(INDEX_POSTAL_CODE)));
                 address.setCountry("AR");
-                address.setAddressLine1(addressLine1);
-                sucursal.setAddress(address);
 
+                Location location = new Location();
+                location.setType("Point");
+
+                Cell latitudeCell = row.getCell(INDEX_LATITUDE);
+                Cell longitudeCell = row.getCell(INDEX_LONGITUDE);
+
+                String latitudeValue = getValueOrNullOrTrimmed(latitudeCell);
+                String longitudeValue = getValueOrNullOrTrimmed(longitudeCell);
+
+                if (latitudeValue != null && longitudeValue != null) {
+                    try {
+                        Double latitude = Double.parseDouble(latitudeValue);
+                        Double longitude = Double.parseDouble(longitudeValue);
+
+                        List<Double> coordinatesList = new ArrayList<>();
+                        coordinatesList.add(latitude);
+                        coordinatesList.add(longitude);
+
+                        location.setCoordinates(coordinatesList);
+                    } catch (NumberFormatException e) {
+                        // No se pudo convertir a Double, se deja como null
+                        location.setCoordinates(null);
+                    }
+                }
+
+                address.setLocation(location);
+                sucursal.setAddress(address);
 
                 // Mapeo del parentCode y parentId
                 String parentCode = getValueOrNullOrTrimmed(row.getCell(0));
@@ -113,10 +157,10 @@ public class ExcelService {
                     if (parentUUID == null) {
                         throw new IllegalArgumentException("Parent HUB not found for BRANCH with code: " + currentCode);
                     }
-                    sucursal.setParentId(parentUUID);
+                    sucursal.setHub_id(parentUUID);
                 }
 
-                String[] days = {"MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"};
+                String[] days = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"};
                 int[] indices = {
                         INDEX_MONDAY, INDEX_TUESDAY, INDEX_WEDNESDAY, INDEX_THURSDAY, INDEX_FRIDAY, INDEX_SATURDAY, INDEX_SUNDAY
                 };
@@ -151,9 +195,12 @@ public class ExcelService {
             return null;
         }
 
+        String opens = parts[0] + ":00";
+        String closes = parts[1] + ":00";
+
         DayHours dayHours = new DayHours();
-        dayHours.setOpens(parts[0]);
-        dayHours.setCloses(parts[1]);
+        dayHours.setOpens(opens);
+        dayHours.setCloses(closes);
         return dayHours;
     }
 
@@ -192,8 +239,6 @@ public class ExcelService {
                 throw new IllegalArgumentException("Tipo no reconocido: " + excelType);
         }
     }
-
-
 
 
 }

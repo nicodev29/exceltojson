@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Embeddable
 @Data
-public class DayHours {
+public class DayHours extends OpeningHours {
     private String opens;
     private String closes;
 
