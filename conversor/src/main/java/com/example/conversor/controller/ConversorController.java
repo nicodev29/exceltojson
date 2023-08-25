@@ -3,6 +3,8 @@ package com.example.conversor.controller;
 import com.example.conversor.model.Sucursal;
 import com.example.conversor.service.ExcelService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -31,8 +33,13 @@ public class ConversorController {
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file) throws Exception {
         List<Sucursal> sucursales = excelService.processExcelFile(file.getInputStream());
 
-        // Convertir la lista de sucursales a JSON
-        String json = new ObjectMapper().writeValueAsString(sucursales);
+        // Instanciar el ObjectMapper, registrar el módulo y desactivar la serialización de fechas como timestamps
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        // Convertir la lista de sucursales a JSON con "pretty print"
+        String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(sucursales);
 
         byte[] isr = json.getBytes();
 

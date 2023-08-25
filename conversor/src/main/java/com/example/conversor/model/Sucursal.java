@@ -14,7 +14,7 @@ import java.util.UUID;
 public class Sucursal {
 
     @Id
-    private UUID id;  // Importa java.util.UUID
+    private UUID id;
     private UUID parentId;
 
     private String code;
@@ -25,7 +25,8 @@ public class Sucursal {
     private String emailAddress;
     private String phoneNumber;
     private String status;
-    private LocalDateTime createdAt;  // Importa java.time.LocalDateTime
+    private String numeration;
+    private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     @Embedded
@@ -37,6 +38,16 @@ public class Sucursal {
     @Column(name = "attribute_value")
     private Map<String, String> attributes = new HashMap<>();
 
-    // Si necesitas representar los atributos, servicios y exclusiones como objetos o listas, deberás crear clases o colecciones adicionales.
+    @ElementCollection
+    @CollectionTable(name = "hours", joinColumns = @JoinColumn(name = "sucursal_id"))
+    @MapKeyColumn(name = "day_of_week")
+    @AttributeOverrides({
+            @AttributeOverride(name="opens", column=@Column(name="opens_at")),
+            @AttributeOverride(name="closes", column=@Column(name="closes_at"))
+    })
+    private Map<String, DayHours> openingHours = new HashMap<>();
+
+
+
 }
 
