@@ -37,7 +37,6 @@ public class ExcelService {
     private static final int INDEX_SUNDAY = 23;
 
     public List<Sucursal> processExcelFile(InputStream file) throws IOException {
-
         List<Sucursal> sucursales = new ArrayList<>();
         Map<String, UUID> hubMapping = new HashMap<>();
 
@@ -51,142 +50,144 @@ public class ExcelService {
 
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
-                Sucursal sucursal = new Sucursal();
+                Sucursal sucursal = createSucursalFromRow(row, hubMapping);
 
-                sucursal.setId(UUID.randomUUID());  // Asigna un UUID a cada sucursal
-
-                // Mapeo de campos
-                sucursal.setCode(getValueOrNullOrTrimmed(row.getCell(INDEX_CODE)));
-                sucursal.setType(convertType(getValueOrNullOrTrimmed(row.getCell(INDEX_TYPE))));
-                sucursal.setNumber(getValueOrNullOrTrimmed(row.getCell(INDEX_NUMBER)));
-                sucursal.setName(getValueOrNullOrTrimmed(row.getCell(INDEX_NAME)));
-                sucursal.setManager(getValueOrNullOrTrimmed(row.getCell(INDEX_MANAGER)));
-                sucursal.setPhoneNumber(getValueOrNullOrTrimmed(row.getCell(INDEX_PHONE_NUMBER)));
-                sucursal.setCreatedAt(LocalDateTime.now());
-                sucursal.setUpdatedAt(LocalDateTime.now());
-
-                String statusCellValue = getValueOrNullOrTrimmed(row.getCell(6));
-                if (statusCellValue != null) {
-                    switch (statusCellValue) {
-                        case "S":
-                            sucursal.setStatus("ACTIVE");
-                            break;
-                        case "N":
-                            sucursal.setStatus("INACTIVE");
-                            break;
-                        case "F. BAJA":
-                            sucursal.setStatus("CLOSED");
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Valor no reconocido para el estado: " + statusCellValue);
-                    }
+                if (sucursal != null) {
+                    sucursales.add(sucursal);
                 }
-
-                String emailAddress = getValueOrNullOrTrimmed(row.getCell(INDEX_EMAIL_ADDRESS));
-                if ("NULL".equalsIgnoreCase(emailAddress)) {
-                    emailAddress = null;
-                }
-
-                Address address = new Address();
-                String addressLine1 = getValueOrNullOrTrimmed(row.getCell(INDEX_ADDRESS_LINE1));
-                String numeration = getValueOrNullOrTrimmed(row.getCell(INDEX_NUMERATION));
-
-                if (numeration != null && !numeration.trim().isEmpty()) {
-                    try {
-                        double numerationValue = Double.parseDouble(numeration);
-                        int numerationIntValue = (int) numerationValue; // Convierte a int para quitar los decimales
-                        addressLine1 = addressLine1 + " " + numerationIntValue;
-                    } catch (NumberFormatException e) {
-                        // Si no se puede convertir a número, mantener la numeración como está
-                        addressLine1 = addressLine1 + " " + numeration;
-                    }
-                }
-
-                address.setAddressLine1(addressLine1);
-                address.setCity(getValueOrNullOrTrimmed(row.getCell(INDEX_CITY)));
-                String regionValue = getValueOrNullOrTrimmed(row.getCell(INDEX_REGION));
-                if (regionValue != null) {
-                    address.setRegion("AR-" + regionValue);
-                } else {
-                    address.setRegion(null);
-                }
-                address.setPostalCode(getValueOrNullOrTrimmed(row.getCell(INDEX_POSTAL_CODE)));
-                address.setCountry("AR");
-
-                Location location = new Location();
-                location.setType("Point");
-
-                Cell latitudeCell = row.getCell(INDEX_LATITUDE);
-                Cell longitudeCell = row.getCell(INDEX_LONGITUDE);
-
-                String latitudeValue = getValueOrNullOrTrimmed(latitudeCell);
-                String longitudeValue = getValueOrNullOrTrimmed(longitudeCell);
-
-                if (latitudeValue != null && longitudeValue != null) {
-                    try {
-                        Double latitude = Double.parseDouble(latitudeValue);
-                        Double longitude = Double.parseDouble(longitudeValue);
-
-                        List<Double> coordinatesList = new ArrayList<>();
-                        coordinatesList.add(latitude);
-                        coordinatesList.add(longitude);
-
-                        location.setCoordinates(coordinatesList);
-                    } catch (NumberFormatException e) {
-                        // No se pudo convertir a Double, se deja como null
-                        location.setCoordinates(null);
-                    }
-                }
-
-                address.setLocation(location);
-                sucursal.setAddress(address);
-
-                // Mapeo del parentCode y parentId
-                String parentCode = getValueOrNullOrTrimmed(row.getCell(0));
-                String currentCode = getValueOrNullOrTrimmed(row.getCell(1));
-                String type = getValueOrNullOrTrimmed(row.getCell(2));
-
-                if (type != null && type.equals("HUB")) {
-                    UUID hubUUID = UUID.randomUUID();
-                    hubMapping.put(currentCode, hubUUID);  // Usa el código de la sucursal actual como clave en el mapeo
-                } else if (type != null && type.equals("BRANCH")) {
-                    UUID parentUUID = hubMapping.get(parentCode);
-                    if (parentUUID == null) {
-                        throw new IllegalArgumentException("Parent HUB not found for BRANCH with code: " + currentCode);
-                    }
-                    sucursal.setHub_id(parentUUID);
-                }
-
-
-                Attributes attributes = sucursal.getAttributes();
-
-                if (attributes == null) {
-                    attributes = new Attributes();
-                    sucursal.setAttributes(attributes); // Asegúrate de asignar el objeto attributes a la sucursal
-                }
-
-                Map<String, OpeningHours> openingHoursMap = new HashMap<>();
-                String[] days = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"};
-
-                int[] indices = {
-                        INDEX_MONDAY, INDEX_TUESDAY, INDEX_WEDNESDAY, INDEX_THURSDAY, INDEX_FRIDAY, INDEX_SATURDAY, INDEX_SUNDAY
-                };
-
-                for (int i = 0; i < indices.length; i++) {
-                    OpeningHours openingHours = extractOpeningHoursFromCell(row.getCell(indices[i]));
-                    if (openingHours != null) {
-                        openingHoursMap.put(days[i], openingHours);
-                    }
-                }
-
-                attributes.setOpeningHours(openingHoursMap);
-                sucursal.setAttributes(attributes); // Asegúrate de asignar el objeto attributes de nuevo a la sucursal
-                sucursales.add(sucursal);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return sucursales;
+    }
+
+    private Sucursal createSucursalFromRow(Row row, Map<String, UUID> hubMapping) {
+        Sucursal sucursal = new Sucursal();
+        sucursal.setId(UUID.randomUUID());  // Asigna un UUID a cada sucursal
+
+        // Mapeo de campos
+        sucursal.setCode(getValueOrNullOrTrimmed(row.getCell(INDEX_CODE)));
+        sucursal.setType(convertType(getValueOrNullOrTrimmed(row.getCell(INDEX_TYPE))));
+        sucursal.setNumber(getValueOrNullOrTrimmed(row.getCell(INDEX_NUMBER)));
+        sucursal.setName(getValueOrNullOrTrimmed(row.getCell(INDEX_NAME)));
+        sucursal.setManager(getValueOrNullOrTrimmed(row.getCell(INDEX_MANAGER)));
+        sucursal.setPhoneNumber(getValueOrNullOrTrimmed(row.getCell(INDEX_PHONE_NUMBER)));
+        sucursal.setCreatedAt(LocalDateTime.now());
+        sucursal.setUpdatedAt(LocalDateTime.now());
+
+        String statusCellValue = getValueOrNullOrTrimmed(row.getCell(6));
+        if (statusCellValue != null) {
+            sucursal.setStatus(mapStatus(statusCellValue));
+        }
+
+        sucursal.setEmailAddress(mapNullToNull(getValueOrNullOrTrimmed(row.getCell(INDEX_EMAIL_ADDRESS))));
+
+        Address address = createAddressFromRow(row);
+        sucursal.setAddress(address);
+
+        mapParentId(sucursal, row, hubMapping);
+
+        sucursal.setAttributes(extractAttributes(row));
+        return sucursal;
+    }
+
+    private String mapStatus(String statusCellValue) {
+        switch (statusCellValue) {
+            case "S":
+                return "ACTIVE";
+            case "N":
+                return "INACTIVE";
+            case "F. BAJA":
+                return "CLOSED";
+            default:
+                throw new IllegalArgumentException("Valor no reconocido para el estado: " + statusCellValue);
+        }
+    }
+
+    private void mapParentId(Sucursal sucursal, Row row, Map<String, UUID> hubMapping) {
+        String parentCode = getValueOrNullOrTrimmed(row.getCell(0));
+        String currentCode = getValueOrNullOrTrimmed(row.getCell(1));
+        String type = getValueOrNullOrTrimmed(row.getCell(2));
+
+        if ("HUB".equals(type)) {
+            UUID hubUUID = UUID.randomUUID();
+            hubMapping.put(currentCode, hubUUID);
+        } else if ("BRANCH".equals(type)) {
+            UUID parentUUID = hubMapping.get(parentCode);
+            if (parentUUID == null) {
+                throw new IllegalArgumentException("Parent HUB not found for BRANCH with code: " + currentCode);
+            }
+            sucursal.setHub_id(parentUUID);
+        }
+    }
+
+    private Address createAddressFromRow(Row row) {
+        Address address = new Address();
+        String addressLine1 = getValueOrNullOrTrimmed(row.getCell(INDEX_ADDRESS_LINE1));
+        String numeration = getValueOrNullOrTrimmed(row.getCell(INDEX_NUMERATION));
+
+        if (numeration != null && !numeration.trim().isEmpty()) {
+            addressLine1 = mapNumeration(addressLine1, numeration);
+        }
+
+        address.setAddressLine1(addressLine1);
+        address.setCity(getValueOrNullOrTrimmed(row.getCell(INDEX_CITY)));
+        address.setRegion(mapNullToRegion(getValueOrNullOrTrimmed(row.getCell(INDEX_REGION))));
+        address.setPostalCode(getValueOrNullOrTrimmed(row.getCell(INDEX_POSTAL_CODE)));
+        address.setCountry("AR");
+
+        Location location = createLocationFromRow(row);
+        address.setLocation(location);
+
+        return address;
+    }
+
+    private Location createLocationFromRow(Row row) {
+        Location location = new Location();
+        location.setType("Point");
+
+        Cell latitudeCell = row.getCell(INDEX_LATITUDE);
+        Cell longitudeCell = row.getCell(INDEX_LONGITUDE);
+
+        String latitudeValue = getValueOrNullOrTrimmed(latitudeCell);
+        String longitudeValue = getValueOrNullOrTrimmed(longitudeCell);
+
+        if (latitudeValue != null && longitudeValue != null) {
+            try {
+                Double latitude = Double.parseDouble(latitudeValue);
+                Double longitude = Double.parseDouble(longitudeValue);
+
+                List<Double> coordinatesList = new ArrayList<>();
+                coordinatesList.add(latitude);
+                coordinatesList.add(longitude);
+
+                location.setCoordinates(coordinatesList);
+            } catch (NumberFormatException e) {
+                location.setCoordinates(null);
+            }
+        }
+        return location;
+    }
+
+    private Attributes extractAttributes(Row row) {
+        Attributes attributes = new Attributes();
+        Map<String, OpeningHours> openingHoursMap = new HashMap<>();
+        String[] days = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"};
+
+        int[] indices = {
+                INDEX_MONDAY, INDEX_TUESDAY, INDEX_WEDNESDAY, INDEX_THURSDAY, INDEX_FRIDAY, INDEX_SATURDAY, INDEX_SUNDAY
+        };
+
+        for (int i = 0; i < indices.length; i++) {
+            OpeningHours openingHours = extractOpeningHoursFromCell(row.getCell(indices[i]));
+            if (openingHours != null) {
+                openingHoursMap.put(days[i], openingHours);
+            }
+        }
+
+        attributes.setOpeningHours(openingHoursMap);
+        return attributes;
     }
 
     private OpeningHours extractOpeningHoursFromCell(Cell cell) {
@@ -213,6 +214,17 @@ public class ExcelService {
         openingHours.setCloses(closes);
 
         return openingHours;
+    }
+
+
+    private String mapNumeration(String addressLine1, String numeration) {
+        try {
+            double numerationValue = Double.parseDouble(numeration);
+            int numerationIntValue = (int) numerationValue;
+            return addressLine1 + " " + numerationIntValue;
+        } catch (NumberFormatException e) {
+            return addressLine1 + " " + numeration;
+        }
     }
 
     private String getValueOrNullOrTrimmed(Cell cell) {
@@ -250,6 +262,18 @@ public class ExcelService {
         }
     }
 
+    private String mapNullToNull(String value) {
+        if ("NULL".equalsIgnoreCase(value)) {
+            return null;
+        }
+        return value;
+    }
 
+    private String mapNullToRegion(String value) {
+        if ("NULL".equalsIgnoreCase(value)) {
+            return null;
+        }
+        return "AR-" + value;
+    }
 }
 
