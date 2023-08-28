@@ -61,10 +61,10 @@ public class ExcelService {
         }
         return sucursales;
     }
-
+    private Map<String, UUID> hubIdMapping = new HashMap<>();
     private Sucursal createSucursalFromRow(Row row, Map<String, UUID> hubMapping) {
         Sucursal sucursal = new Sucursal();
-        sucursal.setId(UUID.randomUUID());  // Asigna un UUID a cada sucursal
+        UUID sucursalId = UUID.randomUUID();  // Asigna un UUID a cada sucursal
 
         // Mapeo de campos
         sucursal.setCode(getValueOrNullOrTrimmed(row.getCell(INDEX_CODE)));
@@ -86,8 +86,16 @@ public class ExcelService {
         Address address = createAddressFromRow(row);
         sucursal.setAddress(address);
 
-        mapParentId(sucursal, row, hubMapping);
+        String type = convertType(getValueOrNullOrTrimmed(row.getCell(INDEX_TYPE)));
+        if ("BRANCH".equals(type)) {
+            String hubCode = getValueOrNullOrTrimmed(row.getCell(INDEX_HUB_ID));
+            UUID hubId = hubMapping.get(hubCode);
+            if (hubId != null) {
+                sucursalId = hubId;  // Asigna el `id` del HUB como `hub_id` para sucursales "BRANCH"
+            }
+        }
 
+        sucursal.setId(sucursalId);
         sucursal.setAttributes(extractAttributes(row));
         return sucursal;
     }
@@ -102,23 +110,6 @@ public class ExcelService {
                 return "CLOSED";
             default:
                 throw new IllegalArgumentException("Valor no reconocido para el estado: " + statusCellValue);
-        }
-    }
-
-    private void mapParentId(Sucursal sucursal, Row row, Map<String, UUID> hubMapping) {
-        String parentCode = getValueOrNullOrTrimmed(row.getCell(0));
-        String currentCode = getValueOrNullOrTrimmed(row.getCell(1));
-        String type = getValueOrNullOrTrimmed(row.getCell(2));
-
-        if ("HUB".equals(type)) {
-            UUID hubUUID = UUID.randomUUID();
-            hubMapping.put(currentCode, hubUUID);
-        } else if ("BRANCH".equals(type)) {
-            UUID parentUUID = hubMapping.get(parentCode);
-            if (parentUUID == null) {
-                throw new IllegalArgumentException("Parent HUB not found for BRANCH with code: " + currentCode);
-            }
-            sucursal.setHub_id(parentUUID);
         }
     }
 
@@ -215,7 +206,6 @@ public class ExcelService {
 
         return openingHours;
     }
-
 
     private String mapNumeration(String addressLine1, String numeration) {
         try {

@@ -16,7 +16,7 @@ public class Sucursal {
 
     @Id
     private UUID id;
-    private UUID hub_id;
+    private UUID hub_Id;
 
     private String code;
     private String type;
