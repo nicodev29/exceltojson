@@ -1,8 +1,6 @@
 package com.example.conversor.service;
 
 import com.example.conversor.model.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.persistence.Lob;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
 
@@ -15,7 +13,6 @@ import java.util.*;
 @Service
 public class ExcelService {
 
-    private static final ObjectMapper objectMapper = new ObjectMapper();
     private static final int INDEX_HUB_ID = 0;
     private static final int INDEX_CODE = 1;
     private static final int INDEX_TYPE = 2;
@@ -160,18 +157,30 @@ public class ExcelService {
                     sucursal.setHub_id(parentUUID);
                 }
 
+
+                Attributes attributes = sucursal.getAttributes();
+
+                if (attributes == null) {
+                    attributes = new Attributes();
+                    sucursal.setAttributes(attributes); // Asegúrate de asignar el objeto attributes a la sucursal
+                }
+
+                Map<String, OpeningHours> openingHoursMap = new HashMap<>();
                 String[] days = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"};
+
                 int[] indices = {
                         INDEX_MONDAY, INDEX_TUESDAY, INDEX_WEDNESDAY, INDEX_THURSDAY, INDEX_FRIDAY, INDEX_SATURDAY, INDEX_SUNDAY
                 };
 
-                for (int i = 0; i < days.length; i++) {
-                    DayHours dayHours = extractDayHoursFromCell(row.getCell(indices[i]));
-                    if (dayHours != null) {
-                        sucursal.getOpeningHours().put(days[i], dayHours);
+                for (int i = 0; i < indices.length; i++) {
+                    OpeningHours openingHours = extractOpeningHoursFromCell(row.getCell(indices[i]));
+                    if (openingHours != null) {
+                        openingHoursMap.put(days[i], openingHours);
                     }
                 }
 
+                attributes.setOpeningHours(openingHoursMap);
+                sucursal.setAttributes(attributes); // Asegúrate de asignar el objeto attributes de nuevo a la sucursal
                 sucursales.add(sucursal);
             }
         } catch (Exception e) {
@@ -180,10 +189,11 @@ public class ExcelService {
         return sucursales;
     }
 
-    private DayHours extractDayHoursFromCell(Cell cell) {
+    private OpeningHours extractOpeningHoursFromCell(Cell cell) {
         if (cell == null) {
             return null;
         }
+
         String value = cell.toString().trim();
         if (value.isEmpty()) {
             return null;
@@ -191,19 +201,19 @@ public class ExcelService {
 
         String[] parts = value.split(" A ");
         if (parts.length != 2) {
-            // Aquí puedes manejar el error o simplemente regresar null
+            // Puedes manejar el error aquí si es necesario
             return null;
         }
 
         String opens = parts[0] + ":00";
         String closes = parts[1] + ":00";
 
-        DayHours dayHours = new DayHours();
-        dayHours.setOpens(opens);
-        dayHours.setCloses(closes);
-        return dayHours;
-    }
+        OpeningHours openingHours = new OpeningHours();
+        openingHours.setOpens(opens);
+        openingHours.setCloses(closes);
 
+        return openingHours;
+    }
 
     private String getValueOrNullOrTrimmed(Cell cell) {
         if (cell == null) {

@@ -36,21 +36,8 @@ public class Sucursal {
     @Embedded
     private Address address;
 
-    @ElementCollection
-    @CollectionTable(name = "sucursal_attributes", joinColumns = @JoinColumn(name = "sucursal_id"))
-    @MapKeyColumn(name = "attribute_key")
-    @Column(name = "attribute_value")
-    private Map<String, String> attributes = new HashMap<>();
-
-    @ElementCollection
-    @CollectionTable(name = "hours", joinColumns = @JoinColumn(name = "sucursal_id"))
-    @MapKeyColumn(name = "day_of_week")
-    @AttributeOverrides({
-            @AttributeOverride(name="opens", column=@Column(name="opens_at")),
-            @AttributeOverride(name="closes", column=@Column(name="closes_at"))
-    })
-    private Map<String, DayHours> openingHours = new HashMap<>();
-
+    @Embedded
+    private Attributes attributes;
 
 }
 
