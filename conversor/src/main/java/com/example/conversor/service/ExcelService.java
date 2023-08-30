@@ -48,6 +48,24 @@ public class ExcelService {
             if (rowIterator.hasNext()) rowIterator.next();
             if (rowIterator.hasNext()) rowIterator.next();
 
+            // Primero, almacenamos todos los UUIDs de las sucursales tipo HUB
+            while (rowIterator.hasNext()) {
+                Row row = rowIterator.next();
+                String code = getValueOrNullOrTrimmed(row.getCell(INDEX_CODE));
+                String type = convertType(getValueOrNullOrTrimmed(row.getCell(INDEX_TYPE)));
+                if ("HUB".equals(type)) {
+                    UUID uuid = UUID.randomUUID();
+                    hubMapping.put(code, uuid);
+                }
+            }
+
+            // Reiniciar el iterador para recorrer las filas nuevamente
+            rowIterator = sheet.iterator();
+            // Omitir las dos primeras filas de encabezado nuevamente
+            if (rowIterator.hasNext()) rowIterator.next();
+            if (rowIterator.hasNext()) rowIterator.next();
+
+            // Ahora, creamos cada sucursal y asignamos el UUID correspondiente
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
                 Sucursal sucursal = createSucursalFromRow(row, hubMapping);
@@ -61,10 +79,9 @@ public class ExcelService {
         }
         return sucursales;
     }
-    private Map<String, UUID> hubIdMapping = new HashMap<>();
     private Sucursal createSucursalFromRow(Row row, Map<String, UUID> hubMapping) {
         Sucursal sucursal = new Sucursal();
-        UUID sucursalId = UUID.randomUUID();  // Asigna un UUID a cada sucursal
+        sucursal.setId(UUID.randomUUID());  // Asigna un UUID a cada sucursal
 
         // Mapeo de campos
         sucursal.setCode(getValueOrNullOrTrimmed(row.getCell(INDEX_CODE)));
@@ -84,20 +101,25 @@ public class ExcelService {
         sucursal.setEmailAddress(mapNullToNull(getValueOrNullOrTrimmed(row.getCell(INDEX_EMAIL_ADDRESS))));
 
         Address address = createAddressFromRow(row);
+
         sucursal.setAddress(address);
 
+        mapParentId(sucursal, row, hubMapping);
+
+        sucursal.setAttributes(extractAttributes(row));
+
+        return sucursal;
+    }
+
+    private void mapParentId(Sucursal sucursal, Row row, Map<String, UUID> hubMapping) {
         String type = convertType(getValueOrNullOrTrimmed(row.getCell(INDEX_TYPE)));
-        if ("BRANCH".equals(type)) {
+        if ("BRANCH".equals(type) || "LOCKER".equals(type) || "AGENCY".equals(type)) {
             String hubCode = getValueOrNullOrTrimmed(row.getCell(INDEX_HUB_ID));
             UUID hubId = hubMapping.get(hubCode);
             if (hubId != null) {
-                sucursalId = hubId;  // Asigna el `id` del HUB como `hub_id` para sucursales "BRANCH"
+                sucursal.setHub_Id(hubId);
             }
         }
-
-        sucursal.setId(sucursalId);
-        sucursal.setAttributes(extractAttributes(row));
-        return sucursal;
     }
 
     private String mapStatus(String statusCellValue) {

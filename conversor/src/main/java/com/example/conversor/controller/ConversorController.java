@@ -48,5 +48,7 @@ public class ConversorController {
         headers.add("Content-Disposition", "attachment; filename=sucursales.json");
 
         return ResponseEntity.ok().headers(headers).contentType(MediaType.APPLICATION_JSON).body(isr);
+        //return ResponseEntity.ok().headers(headers).contentType(MediaType.APPLICATION_JSON).body(objectMapper.writeValueAsString(sucursales));
+
     }
 }
